@@ -214,12 +214,27 @@ async function loadInitialStats() {
         const stats = await response.json();
 
         if (stats.TotalRecords) {
-            const dateRange = stats.DateRange;
-            const startYear = new Date(dateRange.Start).getFullYear();
-            const endYear = new Date(dateRange.End).getFullYear();
+            let statsText = `${stats.TotalRecords.toLocaleString()} Records | ${stats.MarketTypes.length} Markets`;
 
-            document.getElementById('headerStats').textContent =
-                `${stats.TotalRecords.toLocaleString()} Records | ${stats.MarketTypes.length} Markets | ${startYear}-${endYear}`;
+            // Add date range if available and valid (check both PascalCase and camelCase)
+            const dateRange = stats.DateRange || stats.dateRange;
+            if (dateRange) {
+                const start = dateRange.Start || dateRange.start;
+                const end = dateRange.End || dateRange.end;
+
+                if (start && end) {
+                    const startDate = new Date(start);
+                    const endDate = new Date(end);
+
+                    if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+                        const startYear = startDate.getFullYear();
+                        const endYear = endDate.getFullYear();
+                        statsText += ` | ${startYear}-${endYear}`;
+                    }
+                }
+            }
+
+            document.getElementById('headerStats').textContent = statsText;
         }
     } catch (error) {
         console.error('Error loading stats:', error);

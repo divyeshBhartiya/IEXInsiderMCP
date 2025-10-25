@@ -902,6 +902,29 @@
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 16px;
             margin-bottom: 20px;
+            max-height: calc(100vh - 250px);
+            overflow-y: auto;
+            padding-right: 8px;
+            padding-bottom: 20px;
+        }
+
+        /* Custom scrollbar styling for suggestions */
+        .suggestions-categories::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .suggestions-categories::-webkit-scrollbar-track {
+            background: var(--background-color);
+            border-radius: 4px;
+        }
+
+        .suggestions-categories::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 4px;
+        }
+
+        .suggestions-categories::-webkit-scrollbar-thumb:hover {
+            background: #2563eb;
         }
 
         .suggestion-category {
@@ -1223,17 +1246,6 @@
                         <div class="example-title">Data Queries</div>
                         <div class="example-desc">Query specific data</div>
                     </div>
-                </div>
-
-                <div style="margin-top: 32px; padding: 20px; background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1)); border-radius: 12px; border-left: 4px solid #667eea;">
-                    <h3 style="margin: 0 0 12px 0; color: #667eea; font-size: 18px;">💬 Try asking natural questions like:</h3>
-                    <ul style="margin: 0; padding-left: 24px; line-height: 1.8;">
-                        <li>"What insights can you tell me about market volatility?"</li>
-                        <li>"Which market should I target for maximum profit?"</li>
-                        <li>"Predict the price trends for next month"</li>
-                        <li>"Are there any anomalies I should be aware of?"</li>
-                        <li>"What patterns do you see in the trading data?"</li>
-                    </ul>
                 </div>
             </div>
 
