@@ -164,16 +164,6 @@ Claude: [Uses IEXInsider MCP tool]
 │ Service │  │ Service │
 └─────────┘  └─────────┘
 ```
-
-### What Changed in v2.0
-
-**Before (v1.0):**
-- ❌ 3 redundant controllers
-- ❌ No proper MCP server
-- ❌ Limited filtering
-- ❌ No standard deviation
-
-**After (v2.0):**
 - ✅ 1 unified controller
 - ✅ Proper MCPServer class
 - ✅ Advanced filtering (price ranges, time blocks)
