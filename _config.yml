@@ -1,0 +1,28 @@
+# Jekyll config for the IEXInsiderMCP project site
+title: IEXInsiderMCP
+description: "Documentation / site for the IEXInsiderMCP repository"
+
+# For a project site, set baseurl to the repo name
+baseurl: "/IEXInsiderMCP"
+url: "https://divyeshBhartiya.github.io"
+
+# Use the tactile theme from pages-themes
+remote_theme: pages-themes/tactile
+
+# Plugins (jekyll-remote-theme lets us use remote_theme)
+plugins:
+  - jekyll-feed
+  - jekyll-remote-theme
+
+# Markdown processor settings
+markdown: kramdown
+kramdown:
+  input: GFM
+
+# Permalinks
+permalink: /:title/
+
+# Exclude typical files from the site build
+exclude:
+  - Gemfile.lock
+  - node_modules
