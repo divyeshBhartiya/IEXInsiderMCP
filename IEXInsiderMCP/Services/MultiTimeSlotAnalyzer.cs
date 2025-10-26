@@ -517,22 +517,51 @@ public class MultiTimeSlotAnalyzer
         var maxDate = dataList.Max(d => d.Date);
         var daysDiff = (maxDate - minDate).Days;
 
-        List<IGrouping<string, IEXMarketData>> groupedByDate;
+        List<IGrouping<string, IEXMarketData>> groupedData;
         string groupingUnit;
+        List<string> labels;
+        List<decimal> values;
 
-        if (daysDiff <= 60)
+        if (daysDiff == 0)
         {
-            // 0-60 days: Group by day
-            groupedByDate = dataList
+            // Single day: Group by time block (15-minute intervals)
+            groupedData = dataList
+                .GroupBy(d => d.TimeBlock)
+                .OrderBy(g => g.Key)
+                .ToList();
+            groupingUnit = "time_block";
+
+            labels = groupedData.Select(g => g.Key).ToList();
+            values = groupedData.Select(g =>
+            {
+                if (metricType == "mcp")
+                    return (decimal)g.Average(d => d.MCP);
+                else
+                    return (decimal)g.Average(d => d.MCV);
+            }).ToList();
+        }
+        else if (daysDiff <= 60)
+        {
+            // 1-60 days: Group by day
+            groupedData = dataList
                 .GroupBy(d => d.Date.ToString("yyyy-MM-dd"))
                 .OrderBy(g => g.Key)
                 .ToList();
             groupingUnit = "day";
+
+            labels = groupedData.Select(g => g.Key).ToList();
+            values = groupedData.Select(g =>
+            {
+                if (metricType == "mcp")
+                    return (decimal)g.Average(d => d.MCP);
+                else
+                    return (decimal)g.Average(d => d.MCV);
+            }).ToList();
         }
         else if (daysDiff <= 181)
         {
             // 61-181 days: Group by week
-            groupedByDate = dataList
+            groupedData = dataList
                 .GroupBy(d =>
                 {
                     var year = d.Date.Year;
@@ -543,25 +572,34 @@ public class MultiTimeSlotAnalyzer
                 .OrderBy(g => g.Key)
                 .ToList();
             groupingUnit = "week";
+
+            labels = groupedData.Select(g => g.Key).ToList();
+            values = groupedData.Select(g =>
+            {
+                if (metricType == "mcp")
+                    return (decimal)g.Average(d => d.MCP);
+                else
+                    return (decimal)g.Average(d => d.MCV);
+            }).ToList();
         }
         else
         {
             // 182+ days: Group by month
-            groupedByDate = dataList
+            groupedData = dataList
                 .GroupBy(d => d.Date.ToString("yyyy-MM"))
                 .OrderBy(g => g.Key)
                 .ToList();
             groupingUnit = "month";
-        }
 
-        var labels = groupedByDate.Select(g => g.Key).ToList();
-        var values = groupedByDate.Select(g =>
-        {
-            if (metricType == "mcp")
-                return (decimal)g.Average(d => d.MCP);
-            else
-                return (decimal)g.Average(d => d.MCV);
-        }).ToList();
+            labels = groupedData.Select(g => g.Key).ToList();
+            values = groupedData.Select(g =>
+            {
+                if (metricType == "mcp")
+                    return (decimal)g.Average(d => d.MCP);
+                else
+                    return (decimal)g.Average(d => d.MCV);
+            }).ToList();
+        }
 
         return new Dictionary<string, object>
         {
@@ -649,22 +687,42 @@ public class MultiTimeSlotAnalyzer
         var maxDate = dataList.Max(d => d.Date);
         var daysDiff = (maxDate - minDate).Days;
 
-        List<IGrouping<string, IEXMarketData>> groupedByDate;
+        List<IGrouping<string, IEXMarketData>> groupedData;
         string groupingUnit;
+        List<string> labels;
+        List<decimal> mcpValues;
+        List<decimal> mcvValues;
 
-        if (daysDiff <= 60)
+        if (daysDiff == 0)
         {
-            // 0-60 days: Group by day
-            groupedByDate = dataList
+            // Single day: Group by time block (15-minute intervals)
+            groupedData = dataList
+                .GroupBy(d => d.TimeBlock)
+                .OrderBy(g => g.Key)
+                .ToList();
+            groupingUnit = "time_block";
+
+            labels = groupedData.Select(g => g.Key).ToList();
+            mcpValues = groupedData.Select(g => (decimal)g.Average(d => d.MCP)).ToList();
+            mcvValues = groupedData.Select(g => (decimal)g.Average(d => d.MCV)).ToList();
+        }
+        else if (daysDiff <= 60)
+        {
+            // 1-60 days: Group by day
+            groupedData = dataList
                 .GroupBy(d => d.Date.ToString("yyyy-MM-dd"))
                 .OrderBy(g => g.Key)
                 .ToList();
             groupingUnit = "day";
+
+            labels = groupedData.Select(g => g.Key).ToList();
+            mcpValues = groupedData.Select(g => (decimal)g.Average(d => d.MCP)).ToList();
+            mcvValues = groupedData.Select(g => (decimal)g.Average(d => d.MCV)).ToList();
         }
         else if (daysDiff <= 181)
         {
             // 61-181 days: Group by week
-            groupedByDate = dataList
+            groupedData = dataList
                 .GroupBy(d =>
                 {
                     var year = d.Date.Year;
@@ -675,22 +733,24 @@ public class MultiTimeSlotAnalyzer
                 .OrderBy(g => g.Key)
                 .ToList();
             groupingUnit = "week";
+
+            labels = groupedData.Select(g => g.Key).ToList();
+            mcpValues = groupedData.Select(g => (decimal)g.Average(d => d.MCP)).ToList();
+            mcvValues = groupedData.Select(g => (decimal)g.Average(d => d.MCV)).ToList();
         }
         else
         {
             // 182+ days: Group by month
-            groupedByDate = dataList
+            groupedData = dataList
                 .GroupBy(d => d.Date.ToString("yyyy-MM"))
                 .OrderBy(g => g.Key)
                 .ToList();
             groupingUnit = "month";
+
+            labels = groupedData.Select(g => g.Key).ToList();
+            mcpValues = groupedData.Select(g => (decimal)g.Average(d => d.MCP)).ToList();
+            mcvValues = groupedData.Select(g => (decimal)g.Average(d => d.MCV)).ToList();
         }
-
-        var labels = groupedByDate.Select(g => g.Key).ToList();
-
-        // Calculate values for MCP and MCV
-        var mcpValues = groupedByDate.Select(g => (decimal)g.Average(d => d.MCP)).ToList();
-        var mcvValues = groupedByDate.Select(g => (decimal)g.Average(d => d.MCV)).ToList();
 
         // Get chart types for each metric
         var mcpChartType = metricChartTypes.ContainsKey("mcp") ? metricChartTypes["mcp"] : "line";

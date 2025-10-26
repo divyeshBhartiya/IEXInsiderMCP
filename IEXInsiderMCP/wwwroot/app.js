@@ -353,15 +353,16 @@ async function handleHeatMapRequest(query, queryParams) {
     const hasMCV = queryLower.includes('mcv');
 
     // If both mentioned, generate two heat maps
-    // If neither mentioned, default to MCP
+    // If neither mentioned, default to BOTH
     // If only one mentioned, show that one
     const metrics = [];
-    if (hasMCP && hasMCV) {
-        metrics.push('mcp', 'mcv');
-    } else if (hasMCV) {
+    if (hasMCP && !hasMCV) {
+        metrics.push('mcp');
+    } else if (hasMCV && !hasMCP) {
         metrics.push('mcv');
     } else {
-        metrics.push('mcp');
+        // Default: show both MCP and MCV
+        metrics.push('mcp', 'mcv');
     }
 
     try {
@@ -928,6 +929,8 @@ function displayHeatMap(query, heatMapData, metric) {
     content += `**${heatMapData.message}**\n\n`;
 
     // Create info card with extracted context
+    const isSingleDayHeatMap = heatMapData.grouping_unit === 'hourly_15min';
+
     content += `<div class="heatmap-info">`;
     content += `<p><strong>Metric:</strong> ${metricName} (${unit})</p>`;
     content += `<p><strong>Time Period:</strong> ${heatMapData.time_period_start} to ${heatMapData.time_period_end}</p>`;
@@ -937,8 +940,25 @@ function displayHeatMap(query, heatMapData, metric) {
     if (heatMapData.extracted_filters && Object.keys(heatMapData.extracted_filters).length > 0) {
         content += `<p><strong>Filters Applied:</strong> ${Object.entries(heatMapData.extracted_filters).map(([k, v]) => `${k}=${v}`).join(', ')}</p>`;
     }
-    content += `<p><strong>Days:</strong> ${heatMapData.dates.length}</p>`;
-    content += `<p><strong>Time Blocks per Day:</strong> ${heatMapData.time_blocks.length}</p>`;
+
+    // Display appropriate info based on heat map type
+    if (isSingleDayHeatMap) {
+        content += `<p><strong>Days:</strong> 1</p>`;
+        content += `<p><strong>Hours:</strong> ${heatMapData.dates.length}</p>`;
+        content += `<p><strong>Time Slots per Hour:</strong> ${heatMapData.time_blocks.length} (15-min intervals)</p>`;
+    } else {
+        // Display based on grouping unit
+        const groupingUnit = heatMapData.grouping_unit || 'day';
+        if (groupingUnit === 'week') {
+            content += `<p><strong>Weeks:</strong> ${heatMapData.dates.length}</p>`;
+        } else if (groupingUnit === 'month') {
+            content += `<p><strong>Months:</strong> ${heatMapData.dates.length}</p>`;
+        } else {
+            content += `<p><strong>Days:</strong> ${heatMapData.dates.length}</p>`;
+        }
+        content += `<p><strong>Time Blocks per ${groupingUnit}:</strong> ${heatMapData.time_blocks.length}</p>`;
+    }
+
     content += `</div>\n\n`;
 
     // Calculate statistics from the matrix
@@ -961,16 +981,22 @@ function displayHeatMap(query, heatMapData, metric) {
         content += `- Data Points: ${allValues.length.toLocaleString()}\n\n`;
     }
 
-    // Add canvas for heat map visualization (25% larger for better visibility)
+    // Add canvas for heat map visualization
     const chartId = 'heatmap-' + Date.now();
-    content += `<div class="chart-container">
+    const chartTitle = isSingleDayHeatMap
+        ? `Heat Map: ${metricName} - Hourly Pattern (15-min intervals)`
+        : `Heat Map: ${metricName} by Time Block and Date`;
+
+    content += `<div class="chart-container heatmap-container" ${isSingleDayHeatMap ? 'style="max-height: 220px;"' : ''}>
         <div class="chart-header">
-            <div class="chart-title">Heat Map: ${metricName} by Time Block and Date</div>
+            <div class="chart-title">${chartTitle}</div>
             <div class="chart-actions">
                 <button class="chart-action-btn" onclick="downloadChart('${chartId}')" title="Download Chart">📥</button>
             </div>
         </div>
-        <canvas id="${chartId}" style="max-height: 750px; width: 100%;"></canvas>
+        <div style="${isSingleDayHeatMap ? 'height: 140px;' : 'height: 450px;'}">
+            <canvas id="${chartId}"></canvas>
+        </div>
     </div>`;
 
     addAssistantMessage(content);
@@ -991,66 +1017,104 @@ function renderHeatMap(chartId, heatMapData, metricName, unit) {
         chartInstances[chartId].destroy();
     }
 
-    // Prepare data for heat map (showing hourly aggregations for readability)
+    // Prepare data for heat map
     const dates = heatMapData.dates;
     const matrix = heatMapData.matrix;
     const timeBlocks = heatMapData.time_blocks;
+    const groupingUnit = heatMapData.grouping_unit;
 
-    // Aggregate by hour (every 4 time blocks = 1 hour since blocks are 15 min each)
-    const hourlyData = [];
-    const hours = [];
+    // Check if this is a single day query with hourly 15-min structure
+    const isSingleDayHourly = groupingUnit === 'hourly_15min';
 
-    // Extract unique hours from actual time blocks (not hardcoded 0-23)
-    const uniqueHours = new Set();
-    timeBlocks.forEach(tb => {
-        // Extract hour from time block (e.g., "17:00:00" -> "17:00")
-        const hour = tb.substring(0, 5); // Gets "HH:MM"
-        const hourOnly = hour.substring(0, 2); // Gets "HH"
-        uniqueHours.add(hourOnly);
-    });
+    let heatData = [];
+    let yAxisLabels = [];
+    let xAxisLabels = [];
 
-    // Create sorted hour labels from unique hours found in data
-    const sortedHours = Array.from(uniqueHours).sort();
-    sortedHours.forEach(h => {
-        hours.push(`${h}:00`);
-    });
+    if (isSingleDayHourly) {
+        // Single day: 4 rows (minute slots) × 24 columns (hours)
+        // Matrix structure: matrix[minuteSlot][hour]
+        yAxisLabels = timeBlocks; // [":00", ":15", ":30", ":45"]
+        xAxisLabels = dates; // ["00", "01", "02", ..., "23"]
 
-    // Create a mapping of time blocks to their index in the timeBlocks array
-    const timeBlockIndexMap = {};
-    timeBlocks.forEach((tb, idx) => {
-        timeBlockIndexMap[tb] = idx;
-    });
-
-    // Aggregate data by hour for each date
-    dates.forEach((date, dateIdx) => {
-        const dateRow = matrix[dateIdx];
-
-        hours.forEach(hour => {
-            // Find all time blocks that belong to this hour
-            const hourPrefix = hour.substring(0, 2); // Get "HH" from "HH:00"
-            let hourValues = [];
-
-            timeBlocks.forEach((tb, blockIdx) => {
-                if (tb.startsWith(hourPrefix + ':')) {
-                    if (blockIdx < dateRow.length && dateRow[blockIdx] !== null) {
-                        hourValues.push(dateRow[blockIdx]);
-                    }
+        timeBlocks.forEach((minuteSlot, rowIdx) => {
+            const row = matrix[rowIdx];
+            dates.forEach((hour, colIdx) => {
+                if (colIdx < row.length && row[colIdx] !== null) {
+                    heatData.push({
+                        x: hour, // Hour (00-23)
+                        y: minuteSlot, // Minute slot (:00, :15, :30, :45)
+                        v: row[colIdx]
+                    });
                 }
             });
-
-            if (hourValues.length > 0) {
-                const avgValue = hourValues.reduce((a, b) => a + b, 0) / hourValues.length;
-                hourlyData.push({
-                    x: date,
-                    y: hour,
-                    v: avgValue
-                });
-            }
         });
-    });
+    } else if (dates.length === 1) {
+        // Fallback for old single-day format
+        yAxisLabels = timeBlocks;
+        xAxisLabels = dates;
+
+        dates.forEach((date, dateIdx) => {
+            const dateRow = matrix[dateIdx];
+            timeBlocks.forEach((timeBlock, blockIdx) => {
+                if (blockIdx < dateRow.length && dateRow[blockIdx] !== null) {
+                    heatData.push({
+                        x: date,
+                        y: timeBlock,
+                        v: dateRow[blockIdx]
+                    });
+                }
+            });
+        });
+    } else {
+        // Multiple days: Aggregate by hour for readability
+        const hours = [];
+
+        // Extract unique hours from actual time blocks
+        const uniqueHours = new Set();
+        timeBlocks.forEach(tb => {
+            const hourOnly = tb.substring(0, 2); // Gets "HH"
+            uniqueHours.add(hourOnly);
+        });
+
+        // Create sorted hour labels
+        const sortedHours = Array.from(uniqueHours).sort();
+        sortedHours.forEach(h => {
+            hours.push(`${h}:00`);
+        });
+        yAxisLabels = hours;
+        xAxisLabels = dates;
+
+        // Aggregate data by hour for each date
+        dates.forEach((date, dateIdx) => {
+            const dateRow = matrix[dateIdx];
+
+            hours.forEach(hour => {
+                // Find all time blocks that belong to this hour
+                const hourPrefix = hour.substring(0, 2);
+                let hourValues = [];
+
+                timeBlocks.forEach((tb, blockIdx) => {
+                    if (tb.startsWith(hourPrefix + ':')) {
+                        if (blockIdx < dateRow.length && dateRow[blockIdx] !== null) {
+                            hourValues.push(dateRow[blockIdx]);
+                        }
+                    }
+                });
+
+                if (hourValues.length > 0) {
+                    const avgValue = hourValues.reduce((a, b) => a + b, 0) / hourValues.length;
+                    heatData.push({
+                        x: date,
+                        y: hour,
+                        v: avgValue
+                    });
+                }
+            });
+        });
+    }
 
     // Find min/max for color scaling
-    const values = hourlyData.map(d => d.v);
+    const values = heatData.map(d => d.v);
     const minVal = Math.min(...values);
     const maxVal = Math.max(...values);
 
@@ -1079,10 +1143,10 @@ function renderHeatMap(chartId, heatMapData, metricName, unit) {
     }
 
     // Transform data for Chart.js matrix display (using bubble chart as heat map)
-    const chartData = hourlyData.map(point => ({
+    const chartData = heatData.map(point => ({
         x: point.x,
         y: point.y,
-        r: 15, // Fixed bubble size
+        r: isSingleDayHourly ? 10 : 18, // Compact bubbles for single day
         value: point.v,
         backgroundColor: getColor(point.v)
     }));
@@ -1102,7 +1166,12 @@ function renderHeatMap(chartId, heatMapData, metricName, unit) {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
-                padding: {
+                padding: isSingleDayHourly ? {
+                    left: 5,
+                    right: 15,
+                    top: 5,
+                    bottom: 5
+                } : {
                     left: 10,
                     right: 20,
                     top: 20,
@@ -1117,6 +1186,9 @@ function renderHeatMap(chartId, heatMapData, metricName, unit) {
                     callbacks: {
                         label: function(context) {
                             const point = context.raw;
+                            if (isSingleDayHourly) {
+                                return `${point.x}${point.y}: ${point.value.toFixed(2)} ${unit}`;
+                            }
                             return `${point.y} on ${point.x}: ${point.value.toFixed(2)} ${unit}`;
                         }
                     }
@@ -1125,18 +1197,18 @@ function renderHeatMap(chartId, heatMapData, metricName, unit) {
             scales: {
                 x: {
                     type: 'category',
-                    labels: dates,
+                    labels: xAxisLabels,
                     title: {
                         display: true,
-                        text: 'Date',
+                        text: isSingleDayHourly ? 'Hour of Day' : 'Date',
                         padding: { top: 10, bottom: 0 }
                     },
                     ticks: {
-                        maxRotation: 90,
-                        minRotation: 45,
-                        autoSkip: true,
-                        maxTicksLimit: 15,
-                        padding: 5
+                        maxRotation: isSingleDayHourly ? 0 : 90,
+                        minRotation: isSingleDayHourly ? 0 : 45,
+                        autoSkip: isSingleDayHourly ? false : true,
+                        maxTicksLimit: isSingleDayHourly ? undefined : 15,
+                        padding: 2
                     },
                     grid: {
                         offset: true,
@@ -1145,14 +1217,15 @@ function renderHeatMap(chartId, heatMapData, metricName, unit) {
                 },
                 y: {
                     type: 'category',
-                    labels: hours,
+                    labels: yAxisLabels,
                     title: {
                         display: true,
-                        text: 'Hour of Day',
+                        text: isSingleDayHourly ? 'Minute Slot' : 'Hour of Day',
                         padding: { left: 0, right: 10 }
                     },
                     ticks: {
-                        padding: 5
+                        autoSkip: false, // Always show all labels
+                        padding: isSingleDayHourly ? 0 : 2
                     },
                     grid: {
                         offset: true,

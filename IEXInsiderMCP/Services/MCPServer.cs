@@ -891,6 +891,56 @@ public class MCPServer
         var maxDate = data.Max(d => d.Date);
         var daysDiff = (maxDate - minDate).Days;
 
+        // Special handling for single day: Create 4 rows (minute slots) × 24 columns (hours)
+        if (daysDiff == 0)
+        {
+            var minuteSlots = new List<string> { ":00", ":15", ":30", ":45" };
+            var hours = Enumerable.Range(0, 24).Select(h => h.ToString("D2")).ToList();
+
+            var singleDayMatrix = new List<List<decimal?>>();
+
+            // Create 4 rows (one for each 15-minute slot within an hour)
+            foreach (var minuteSlot in minuteSlots)
+            {
+                var row = new List<decimal?>();
+
+                // Create 24 columns (one for each hour)
+                foreach (var hour in hours)
+                {
+                    // Find matching time blocks (e.g., "08:15:00-08:30:00" matches hour "08" and minute ":15")
+                    var matchingRecords = data.Where(d =>
+                    {
+                        var timeBlock = d.TimeBlock;
+                        var startTime = timeBlock.Split('-')[0]; // Get "08:15:00"
+                        return startTime.StartsWith(hour + minuteSlot); // Match "08:15"
+                    }).ToList();
+
+                    if (matchingRecords.Any())
+                    {
+                        var avgValue = metricType.ToLowerInvariant() == "mcv"
+                            ? matchingRecords.Average(r => r.MCV)
+                            : matchingRecords.Average(r => r.MCP);
+                        row.Add(avgValue);
+                    }
+                    else
+                    {
+                        row.Add(null);
+                    }
+                }
+
+                singleDayMatrix.Add(row);
+            }
+
+            heatMapData["dates"] = hours; // X-axis: Hours (00-23)
+            heatMapData["time_blocks"] = minuteSlots; // Y-axis: Minute slots (:00, :15, :30, :45)
+            heatMapData["matrix"] = singleDayMatrix;
+            heatMapData["metric"] = metricType.ToUpperInvariant();
+            heatMapData["grouping_unit"] = "hourly_15min";
+            heatMapData["days_range"] = 0;
+
+            return heatMapData;
+        }
+
         // Group by appropriate time unit based on date range
         List<IGrouping<string, IEXMarketData>> groupedByDate;
         string groupingUnit;
