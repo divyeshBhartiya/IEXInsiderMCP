@@ -17,17 +17,20 @@ public class IEXController : ControllerBase
     private readonly MCPServer _mcpServer;
     private readonly MultiTimeSlotAnalyzer _multiTimeSlotAnalyzer;
     private readonly AdvancedAnalyticsService _advancedAnalytics;
+    private readonly ConversationContextService _conversationContext;
     private readonly ILogger<IEXController> _logger;
 
     public IEXController(
         MCPServer mcpServer,
         MultiTimeSlotAnalyzer multiTimeSlotAnalyzer,
         AdvancedAnalyticsService advancedAnalytics,
+        ConversationContextService conversationContext,
         ILogger<IEXController> logger)
     {
         _mcpServer = mcpServer;
         _multiTimeSlotAnalyzer = multiTimeSlotAnalyzer;
         _advancedAnalytics = advancedAnalytics;
+        _conversationContext = conversationContext;
         _logger = logger;
     }
 
@@ -476,9 +479,24 @@ public class IEXController : ControllerBase
                 return Ok(CreateErrorResponse(request.Id, JsonRpcErrorCodes.InvalidParams, "Missing params"));
             }
 
-            var paramsObj = JObject.FromObject(request.Params);
+            // Convert Params to JObject, handling both JsonElement and object types
+            JObject paramsObj;
+            if (request.Params is System.Text.Json.JsonElement jsonElement)
+            {
+                // Convert JsonElement to JObject via JSON string
+                var jsonString = System.Text.Json.JsonSerializer.Serialize(jsonElement);
+                paramsObj = JObject.Parse(jsonString);
+            }
+            else
+            {
+                paramsObj = JObject.FromObject(request.Params);
+            }
+
             var toolName = paramsObj["name"]?.ToString();
             var arguments = paramsObj["arguments"]?.ToObject<Dictionary<string, object>>();
+
+            _logger.LogInformation("JSON-RPC - Tool name: '{ToolName}', Has arguments: {HasArgs}",
+                toolName ?? "null", arguments != null);
 
             if (string.IsNullOrWhiteSpace(toolName))
             {
@@ -542,6 +560,64 @@ public class IEXController : ControllerBase
         };
 
         return await Query(universalRequest);
+    }
+
+    #endregion
+
+    #region Conversation Context Endpoints
+
+    /// <summary>
+    /// Get conversation history for a session
+    /// </summary>
+    [HttpGet("conversation/{sessionId}/history")]
+    public ActionResult<List<ConversationMessage>> GetConversationHistory(string sessionId, [FromQuery] int maxMessages = 10)
+    {
+        try
+        {
+            var history = _conversationContext.GetHistory(sessionId, maxMessages);
+            return Ok(history);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting conversation history");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get session statistics
+    /// </summary>
+    [HttpGet("conversation/{sessionId}/stats")]
+    public ActionResult<SessionStats> GetSessionStats(string sessionId)
+    {
+        try
+        {
+            var stats = _conversationContext.GetSessionStats(sessionId);
+            return Ok(stats);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting session stats");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Clear conversation history for a session
+    /// </summary>
+    [HttpPost("conversation/{sessionId}/clear")]
+    public ActionResult ClearConversation(string sessionId)
+    {
+        try
+        {
+            _conversationContext.ClearSession(sessionId);
+            return Ok(new { success = true, message = $"Session {sessionId} cleared" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error clearing conversation");
+            return StatusCode(500, new { error = ex.Message });
+        }
     }
 
     #endregion

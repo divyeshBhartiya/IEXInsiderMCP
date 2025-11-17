@@ -11,17 +11,20 @@ public class MCPServer
     private readonly IEXDataService _dataService;
     private readonly NLPQueryService _nlpService;
     private readonly NaturalLanguageEngine _naturalLanguageEngine;
+    private readonly AIService _aiService;
     private readonly ILogger<MCPServer> _logger;
 
     public MCPServer(
         IEXDataService dataService,
         NLPQueryService nlpService,
         NaturalLanguageEngine naturalLanguageEngine,
+        AIService aiService,
         ILogger<MCPServer> logger)
     {
         _dataService = dataService;
         _nlpService = nlpService;
         _naturalLanguageEngine = naturalLanguageEngine;
+        _aiService = aiService;
         _logger = logger;
     }
 
@@ -172,6 +175,11 @@ public class MCPServer
         if (arguments.ContainsKey("filters"))
         {
             var result = await ProcessStructuredQuery(query, arguments["filters"], limit);
+
+            // Generate AI insights for the result
+            var aiInsights = await GenerateAIInsights(query, result);
+            result.AIInsights = aiInsights;
+
             return new MCPToolCallResponse
             {
                 Success = result.Success,
@@ -194,11 +202,96 @@ public class MCPServer
 
         // Fall back to NLP query service for other queries
         var nlpResult = await _nlpService.ProcessQueryAsync(query, limit);
+
+        // Generate AI insights for NLP result
+        var nlpAiInsights = await GenerateAIInsights(query, nlpResult);
+        nlpResult.AIInsights = nlpAiInsights;
+
         return new MCPToolCallResponse
         {
             Success = nlpResult.Success,
             Result = nlpResult
         };
+    }
+
+    /// <summary>
+    /// Generate AI-powered conversational insights using Claude/OpenAI
+    /// </summary>
+    private async Task<string> GenerateAIInsights(string query, QueryResult result)
+    {
+        try
+        {
+            // Build data context for AI
+            var dataContext = BuildDataContext(result);
+
+            // Generate insights using AI service
+            var insights = await _aiService.GenerateInsights(query, dataContext);
+
+            return insights;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating AI insights");
+            return string.Empty; // Return empty string on error, don't fail the whole query
+        }
+    }
+
+    /// <summary>
+    /// Build a concise data context summary for AI
+    /// </summary>
+    private string BuildDataContext(QueryResult result)
+    {
+        var context = new System.Text.StringBuilder();
+
+        context.AppendLine($"Total Records: {result.TotalRecords}");
+        context.AppendLine();
+
+        if (result.Data != null && result.Data.Any())
+        {
+            // Calculate key statistics
+            var avgMCP = result.Data.Average(d => d.MCP);
+            var avgMCV = result.Data.Average(d => d.MCV);
+            var minMCP = result.Data.Min(d => d.MCP);
+            var maxMCP = result.Data.Max(d => d.MCP);
+            var minMCV = result.Data.Min(d => d.MCV);
+            var maxMCV = result.Data.Max(d => d.MCV);
+
+            context.AppendLine("Market Statistics:");
+            context.AppendLine($"- Average MCP: ₹{avgMCP:F2}/kWh");
+            context.AppendLine($"- MCP Range: ₹{minMCP:F2} - ₹{maxMCP:F2}/kWh");
+            context.AppendLine($"- Average MCV: {avgMCV:F2} GW");
+            context.AppendLine($"- MCV Range: {minMCV:F2} - {maxMCV:F2} GW");
+            context.AppendLine();
+
+            // Group by market type
+            var byMarket = result.Data.GroupBy(d => d.Type).ToList();
+            if (byMarket.Count > 1)
+            {
+                context.AppendLine("By Market Type:");
+                foreach (var marketGroup in byMarket)
+                {
+                    var marketAvgMCP = marketGroup.Average(d => d.MCP);
+                    var marketAvgMCV = marketGroup.Average(d => d.MCV);
+                    context.AppendLine($"- {marketGroup.Key}: Avg MCP = ₹{marketAvgMCP:F2}/kWh, Avg MCV = {marketAvgMCV:F2} GW, Records = {marketGroup.Count()}");
+                }
+                context.AppendLine();
+            }
+
+            // Time period
+            var minDate = result.Data.Min(d => d.Date);
+            var maxDate = result.Data.Max(d => d.Date);
+            context.AppendLine($"Time Period: {minDate:yyyy-MM-dd} to {maxDate:yyyy-MM-dd}");
+            context.AppendLine();
+
+            // Sample data (first 3 records)
+            context.AppendLine("Sample Data (first 3 records):");
+            foreach (var record in result.Data.Take(3))
+            {
+                context.AppendLine($"  {record.Type} | {record.Date:yyyy-MM-dd} {record.TimeBlock} | MCP: ₹{record.MCP:F2} | MCV: {record.MCV:F2} GW");
+            }
+        }
+
+        return context.ToString();
     }
 
     /// <summary>

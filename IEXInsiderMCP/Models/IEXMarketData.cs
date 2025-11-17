@@ -57,6 +57,7 @@ public class QueryResult
     public Dictionary<string, object>? Aggregations { get; set; }
     public Dictionary<string, object>? Metadata { get; set; }
     public int TotalRecords { get; set; }
+    public string? AIInsights { get; set; } // AI-generated conversational insights
 }
 
 /// <summary>

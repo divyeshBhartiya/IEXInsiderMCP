@@ -1948,6 +1948,12 @@ async function processQueryResult(query, result) {
 
     const queryLower = query.toLowerCase();
 
+    // NEW: If AI insights are available, display them prominently
+    if (result.aiInsights) {
+        await showAIInsightsWithData(query, result);
+        return;
+    }
+
     // Check if result has metadata with chart_data (from grouped aggregations)
     if (result.metadata && result.metadata.chart_data) {
         await showChartFromMetadata(query, result);
@@ -2670,4 +2676,28 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Show AI Insights with accompanying data and charts
+async function showAIInsightsWithData(query, result) {
+    // Display AI insights first (conversational response)
+    const aiInsightsHtml = marked.parse(result.aiInsights);
+    addAssistantMessage(aiInsightsHtml);
+
+    // Then display charts if data is available
+    const queryLower = query.toLowerCase();
+    const hasChartIntent = queryLower.includes('chart') || queryLower.includes('graph') ||
+                          queryLower.includes('plot') || queryLower.includes('visualize') ||
+                          queryLower.includes('compare');
+
+    // Auto-generate chart for comparison queries or if data suggests it
+    if (result.data && result.data.length > 0) {
+        // Group by market type to see if we should show comparison charts
+        const marketTypes = [...new Set(result.data.map(d => d.type))];
+
+        if (marketTypes.length > 1 || hasChartIntent) {
+            // Generate comparison chart
+            await showChartResponse(query, result);
+        }
+    }
 }
