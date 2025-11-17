@@ -20,6 +20,7 @@ builder.Services.AddCors(options =>
 
 // Register application services
 builder.Services.AddSingleton<IEXDataService>();
+builder.Services.AddSingleton<ConversationContextService>(); // Conversation context management
 builder.Services.AddScoped<NLPQueryService>();
 builder.Services.AddScoped<MCPServer>(); // Unified MCP Server
 builder.Services.AddScoped<MultiTimeSlotAnalyzer>(); // Multi-time-slot analyzer
@@ -28,6 +29,7 @@ builder.Services.AddScoped<AdvancedAnalyticsService>(); // Advanced analytics
 // Register AI/ML services
 builder.Services.AddScoped<InsightsEngine>();
 builder.Services.AddScoped<NaturalLanguageEngine>();
+builder.Services.AddHttpClient<AIService>(); // AI Service for Claude/OpenAI API integration
 
 // Configure logging
 builder.Logging.ClearProviders();
@@ -46,7 +48,8 @@ app.UseCors("AllowAll");
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.UseHttpsRedirection();
+// HTTPS redirection removed for easier deployment on non-developer machines
+// app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
@@ -69,7 +72,7 @@ catch (Exception ex)
 }
 
 logger.LogInformation("IEX Insider MCP Server is running!");
-logger.LogInformation("Access the web interface at: http://localhost:5000 or https://localhost:5001");
+logger.LogInformation("Access the web interface at: http://localhost:5000");
 logger.LogInformation("API documentation available at: /swagger");
 
 app.Run();

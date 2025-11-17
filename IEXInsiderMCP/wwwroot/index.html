@@ -784,16 +784,26 @@
         /* Input Area */
         .input-area {
             background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-            margin-top: 20px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            bottom: 0;
+            z-index: 100;
+            margin-top: 12px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
         }
 
         .input-wrapper {
             display: flex;
-            gap: 12px;
+            gap: 10px;
             align-items: flex-end;
+            flex: 1;
         }
 
         .input-container {
@@ -803,15 +813,16 @@
 
         textarea {
             width: 100%;
-            min-height: 60px;
-            max-height: 200px;
-            padding: 16px 50px 16px 16px;
-            border: 2px solid var(--border-color);
-            border-radius: 12px;
-            font-size: 16px;
+            min-height: 42px;
+            max-height: 120px;
+            padding: 10px 42px 10px 12px;
+            border: 1.5px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
             font-family: inherit;
             resize: vertical;
             transition: border-color 0.3s;
+            line-height: 1.4;
         }
 
         textarea:focus {
@@ -821,24 +832,24 @@
 
         .input-buttons {
             position: absolute;
-            right: 12px;
-            bottom: 12px;
+            right: 8px;
+            bottom: 8px;
             display: flex;
-            gap: 8px;
+            gap: 4px;
         }
 
         .icon-button {
-            width: 36px;
-            height: 36px;
+            width: 28px;
+            height: 28px;
             border: none;
             background: transparent;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: background 0.2s;
-            font-size: 20px;
+            font-size: 16px;
         }
 
         .icon-button:hover {
@@ -856,15 +867,17 @@
         }
 
         .send-button {
-            padding: 16px 32px;
+            padding: 10px 20px;
             background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             color: white;
             border: none;
-            border-radius: 12px;
-            font-size: 16px;
+            border-radius: 8px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
+            white-space: nowrap;
+            height: 42px;
         }
 
         .send-button:hover:not(:disabled) {
@@ -881,17 +894,21 @@
         .suggestions {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 16px;
+            gap: 5px;
+            margin-bottom: 8px;
+        }
+
+        .suggestions:empty {
+            margin-bottom: 0;
         }
 
         .suggestion-chip {
-            padding: 8px 16px;
+            padding: 5px 10px;
             background: white;
             border: 1px solid var(--border-color);
-            border-radius: 20px;
+            border-radius: 14px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 12px;
             transition: all 0.2s;
         }
 
@@ -1140,6 +1157,10 @@
                 gap: 12px;
             }
 
+            .input-row {
+                flex-direction: column;
+            }
+
             .input-wrapper {
                 flex-direction: column;
                 gap: 10px;
@@ -1267,19 +1288,21 @@
         <div class="input-area">
             <div class="suggestions" id="suggestions"></div>
 
-            <div class="input-wrapper">
-                <div class="input-container">
-                    <textarea
-                        id="queryInput"
-                        placeholder="Ask anything... Try: 'What insights can you provide about the DAM market?' or 'Should I buy or sell?'"
-                        rows="1"></textarea>
-                    <div class="input-buttons">
-                        <button class="icon-button" id="micButton" title="Voice Input">🎤</button>
+            <div class="input-row">
+                <div class="input-wrapper">
+                    <div class="input-container">
+                        <textarea
+                            id="queryInput"
+                            placeholder="Ask anything... Try: 'What insights can you provide about the DAM market?' or 'Should I buy or sell?'"
+                            rows="1"></textarea>
+                        <div class="input-buttons">
+                            <button class="icon-button" id="micButton" title="Voice Input">🎤</button>
+                        </div>
                     </div>
+                    <button class="send-button" id="sendButton">
+                        Send
+                    </button>
                 </div>
-                <button class="send-button" id="sendButton">
-                    Send
-                </button>
             </div>
         </div>
     </div>
